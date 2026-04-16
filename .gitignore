@@ -1,0 +1,11 @@
+.env
+grades.json
+courses.json
+*credentials.txt
+
+__pycache__/
+*.pyc
+
+backup/
+temp/
+previous_versions/
