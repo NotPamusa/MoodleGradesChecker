@@ -1,4 +1,4 @@
-# 📚 Pamusa's MoodleBot - GradesChecker (versió 1.3)
+# 📚 Pamusa's MoodleBot - GradesChecker (versió 1.2FA)
 
 **MoodleBot GradesChecker** és un petit script en Python que comprova periòdicament l’“Informe d’usuari” de Moodle (UdG) i envia avisos per Telegram quan apareix una nota nova o quan alguna qualificació canvia.
 
@@ -15,6 +15,19 @@
 
 Es requereix **Python 3.8** o superior (ja instal·lat en la majoria de sistemes).
 
+### Entorn Virtual (Recomanat)
+És molt recomanable executar aquest script dins d'un entorn virtual (venv) per aïllar les dependències de la resta del sistema.
+
+1. Crea l'entorn virtual:
+```bash
+python3 -m venv venv
+```
+2. Activa'l:
+```bash
+source venv/bin/activate
+```
+
+### Instal·lació de dependències
 Totes les llibreries necessàries es troben a `requirements.txt`:
 - `requests`
 - `beautifulsoup4`
@@ -22,7 +35,7 @@ Totes les llibreries necessàries es troben a `requirements.txt`:
 - `pyotp` (generació automàtica del codi mòbil al doble-factor)
 - `python-dotenv` (carregador de secrets d'entorn)
 
-Pots instal·lar-ho tot d’un cop executant:
+Un cop tinguis el venv activat, instal·la-ho tot d’un cop executant:
 ```bash
 pip install -r requirements.txt
 ```
@@ -40,6 +53,7 @@ CHAT_ID=          # El teu xat (obre @userinfobot per saber la teva ID)
 USERNAME=         # Usuari de retorn de la UdG (exemple: uXXXXXXX)
 PASSWORD=         # Contrasenya de la UdG
 SECRET_KEY=       # Llavors secreta per generar els codis TOTP de 2FA 
+SHARED_COOKIE_DIR= # (Opcional) Directori on guardar cookies.json per compartir amb altres bots
 ```
 
 > **Nota:** La galeta manual `MoodleSession` i la llista `FRIEND_CHAT_IDS` han passat a la història. Aquest MoodleBot desa tota la sessió a un fitxer protegit i gestiona els amics mitjançant el JSON local.
