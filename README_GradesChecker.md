@@ -1,4 +1,4 @@
-# 📚 Pamusa's MoodleBot - GradesChecker (versió 1.2FA)
+# Pamusa's MoodleBot - GradesChecker (versió 1.2FA)
 
 **MoodleBot GradesChecker** és un petit script en Python que comprova periòdicament l’“Informe d’usuari” de Moodle (UdG) i envia avisos per Telegram quan apareix una nota nova o quan alguna qualificació canvia.
 
@@ -11,7 +11,7 @@
 
 ---
 
-## 🖥️ Requisits
+## Requisits
 
 Es requereix **Python 3.8** o superior (ja instal·lat en la majoria de sistemes).
 
@@ -42,7 +42,7 @@ pip install -r requirements.txt
 
 ---
 
-## 🔧 Configuració
+## Configuració
 
 ### 1. Variables d'Entorn (`.env`)
 Crea un fitxer anomenat `.env` al mateix directori que l'script `gradesChecker.py` i emplena'l així:
@@ -81,7 +81,7 @@ Els `COURSE_ID` i els amics s'organitzen en el fitxer `courses.json`. Has de pos
 
 ---
 
-## ▶️ Ús Manual i Primera Execució
+## Ús Manual i Primera Execució
 
 Executa l'script de forma manual per a la primera volta per comprovar que la sessió s'hagi lligat correctament i per inicialitzar el `grades.json`:
 
@@ -91,7 +91,7 @@ python3 gradesChecker.py
 
 ---
 
-## ⏲️ Execució Periòdica amb cron
+## Execució Periòdica amb cron
 
 Per deixar-lo encès 24/7 a un servidor o ordinador en miniatura, programa una entrada cron per disparar el codi el temps que vulguis. Obre l'editor de cron:
 
@@ -113,7 +113,7 @@ tail -f /RutaAlLog/cron.log
 
 ---
 
-## 🏗️ Funcionament Intern
+## Funcionament Intern
 **Això és el que fa el codi cada cop que s'engega:**
 1. **SSO Segur i Transparent**: Processa l'inici de sessió al campus de la UdG resolent internament la plataforma i els codis TOTP enviats del generador automàtic per al portal de CAS.
 2. **Scraping dels panells evaluatius**: Per a cada clau iterada dins `courses.json`, examina en privat si la base de taules (BeautifulSoup de `.gradeitemheader`) inclou noves valoracions per a l'alumne.
