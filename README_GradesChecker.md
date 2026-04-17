@@ -5,140 +5,103 @@
 > **Funcionalitats principals**  
 > - Detecta qualificacions noves o modificades en els vostres cursos.  
 > - T’avisa a tu amb la nota concreta i, en paral·lel, avisa als teus amics **sense** revelar-los la teva nota.  
-> - Gestió automàtica de la sessió Moodle (renova la `MoodleSession` quan caduca).  
-> - Estat persistent en `grades.json` per no repetir notificacions (exemple a `example_grades.json`).  
-> - Pensat per executar-se via *cron* (o qualsevol planificador).
+> - Gestió automàtica de la sessió Moodle (suport per SSO + 2FA amb codis TOTP).  
+> - Estat persistent en `grades.json` per no repetir notificacions innecessàries.  
+> - Pensat per executar-se de fons mitjançant *cron* (o qualsevol altre planificador).
 
 ---
 
 ## 🖥️ Requisits
 
-| Dependència 		    | Versió mínima | Instal·lació                          	    |
-|-----------------------|---------------|-----------------------------------------------|	
-| Python     	 	    | 3.8          	| ja instal·lat en la majoria de sistemes 	    |
-| `requests`  		    | —           	| `pip install requests`                	    |
-| `beautifulsoup4` 	    | —      	    | `pip install beautifulsoup4`          	    |
-| **(opcional)** `lxml` | —  		    | `pip install lxml` — parser HTML més ràpid	|
+Es requereix **Python 3.8** o superior (ja instal·lat en la majoria de sistemes).
 
-Pots instal·lar-ho tot d’un cop amb:
+Totes les llibreries necessàries es troben a `requirements.txt`:
+- `requests`
+- `beautifulsoup4`
+- `lxml`
+- `pyotp` (generació automàtica del codi mòbil al doble-factor)
+- `python-dotenv` (carregador de secrets d'entorn)
 
+Pots instal·lar-ho tot d’un cop executant:
 ```bash
 pip install -r requirements.txt
 ```
 
-
-
+---
 
 ## 🔧 Configuració
 
-Crea el fitxer `.env` al mateix directori (pots basar-te en `example.env`):
+### 1. Variables d'Entorn (`.env`)
+Crea un fitxer anomenat `.env` al mateix directori que l'script `gradesChecker.py` i emplena'l així:
+
 ```env
-TOKEN=123456:ABCDEF…          # Token del teu bot de Telegram
-CHAT_ID=111111111             # El teu xat (on reps les notes reals)
-FRIEND_CHAT_IDS=22222222,33333333   # Xats d’amics (sense notes)
-MoodleSession=s%3A…           # Cookie Moodle (es renova automàticament)
-USERNAME=uXXXXXXX             # Usuari UdG
-PASSWORD=MySuperSecretPass    # Contrasenya UdG
+TOKEN=            # Token del teu bot de Telegram (te'l dóna @BotFather)
+CHAT_ID=          # El teu xat (obre @userinfobot per saber la teva ID)
+USERNAME=         # Usuari de retorn de la UdG (exemple: uXXXXXXX)
+PASSWORD=         # Contrasenya de la UdG
+SECRET_KEY=       # Llavors secreta per generar els codis TOTP de 2FA 
 ```
 
-TOKEN: crea un bot amb @BotFather.
-CHAT_ID: parla amb @userinfobot o envia qualsevol missatge al teu bot i consulta https://api.telegram.org/botTOKEN/getUpdates.
-FRIEND_CHAT_IDS: llista separada per comes (sense espais) dels teus amics que només rebran l’avís de “hi ha nota nova a PAC1”, però no la xifra.
-MoodleSession: s’obté amb les galetes del navegador un cop identificat al Moodle. El bot la refresca quan cal, però cal USERNAME i PASSWORD per poder-ho fer.
-(Nota: credentials ara s'han mogut a .env per seguretat)
+> **Nota:** La galeta manual `MoodleSession` i la llista `FRIEND_CHAT_IDS` han passat a la història. Aquest MoodleBot desa tota la sessió a un fitxer protegit i gestiona els amics mitjançant el JSON local.
 
-Primera execució manual (crea `grades.json` i comprova que no hi hagi errors):
-```bash
-python3 gradesChecker.py
-```
+### 2. Fitxer `courses.json`
+Els `COURSE_ID` i els amics s'organitzen en el fitxer `courses.json`. Has de posar-lo a la mateixa carpeta:
 
-
-
-    ·Fitxer courses.json
-
-Des de la versió 1.3 els COURSE_IDs i quins amics reben avisos es configuren fora del codi, en un petit fitxer JSON col·locat al mateix directori que gradesChecker.py (pots usar example_courses.json de plantilla).
-
-Exemple:
-
+**Exemple de `courses.json`:**
 ```json
 {
-  "41311": {                    // COURSE_ID (obligatori, string o número)
-    "name":    "Robòtica",      // (opcional) nom de l'assignatura que es mostrarà al missatge (sinó, es posarà el codi, o el que trobi de titol l'scraper)
-    "friends": [22222222]       // (opcional) xats que rebran l’avís "hi ha nota nova"
+  "41311": {                    
+    "name": "Robòtica",      
+    "friends": [22222222]       
   },
-
   "41320": {
-    "name":    "Legislació",
-    "friends": [22222222,33333333]
+    "name": "Legislació",
+    "friends": [22222222, 33333333]
   },
-
-  "41305": {}                   // si no poses res més → només tu rebràs notificacions
+  "41305": {}                   
 }
 ```
+- **Clau:** És el `COURSE_ID` de la teva assignatura, tal com apareix a l’URL de Moodle sent el paràmetre `?id=X`.
+- **`name`** *(opcional)*: El nom personalitzat de l'assignatura que es mostrarà a Telegram (sobreescrivint el títol web per defecte).
+- **`friends`** *(opcional)*: Una llista numèrica d’IDs de xat dels teus amics. Ells **només** reben un avís curiós dient "s'ha publicat nota", però absolutament cap d'ells rep l'aprovat que has tret tu!
 
-Clau = COURSE_ID tal com apareix a l’URL de Moodle ?id=41311.
-name — sobreescriu el títol que extreu automàticament el bot (útil quan el <h1> porta codi, curs acadèmic, etc.).
-friends — llista d’IDs de xat (integers) dels teus amics.
-Si està buida o no existeix, cap amic rebrà notificacions d’aquest curs.
-Els amics només reben l’avís quan la qualificació passa de “‐” (guionet) a un valor real — mai la teva nota concreta.
+---
 
+## ▶️ Ús Manual i Primera Execució
 
+Executa l'script de forma manual per a la primera volta per comprovar que la sessió s'hagi lligat correctament i per inicialitzar el `grades.json`:
 
-## ▶️ Ús manual
-En terminal: 
 ```bash
 python3 gradesChecker.py
 ```
 
+---
 
-## ⏲️ Execució periòdica amb cron
+## ⏲️ Execució Periòdica amb cron
 
-obrir:
+Per deixar-lo encès 24/7 a un servidor o ordinador en miniatura, programa una entrada cron per disparar el codi el temps que vulguis. Obre l'editor de cron:
+
 ```bash
 sudo vim /opt/etc/crontab
 ```
 
-Afegir la línia:
+I afegeix la línia per comprovar les notes **cada 15 minuts**, bolcant la sortida de les alertes a un arxiu "log":
 ```bash
-*/15 * * * * usuari /dir/gradesChecker.py >> /share/Public/MoodleBot/GradesChecker/cron.log 2>&1
+*/15 * * * * usuari /RutaScripts/MoodleBot/GradesChecker/gradesChecker.py >> /RutaAlLog/cron.log 2>&1
 ```
 
-Exemple:
+> Els cinc primers camps de codificació d'espais són de Linux Cron, i signifiquen respectivament: `minut`, `hora`, `dia (mes)`, `mes`, `dia (setmana)`.
+
+Per llegir el registre (Log) recent amb les entrades de Moodle:
 ```bash
-*/15 * * * * psm /opt/bin/python3 /share/_psm/MoodleBot/GradesChecker/gradesChecker.py >> /share/Public/MoodleBot/GradesChecker/cron.log 2>&1
+tail -f /RutaAlLog/cron.log
 ```
 
+---
 
-Els cinc camps indiquen minut hora dia-mes mes dia-setmana.
-Per exemple, */5 * * * * seria cada 5 min; 0 8 * * 1-5 cada dia feiner a les 08:00.
-
-
-Per veure el log:
-Recent:
-```bash
-tail -f /share/Public/MoodleBot/GradesChecker/cron.log
-```
-
-Total:
-```bash
-cat /share/Public/MoodleBot/GradesChecker/cron.log
-```
-
-
-## 🏗️ Funcionament intern
-
-1- Per a cada COURSE_ID definides al codi:
-Descarrega la taula de qualificacions amb la cookie MoodleSession.
-Si rep un 3xx ➜ cookie expirada: torna a autenticar-se i repeteix.
-
-2- Fa scraping amb BeautifulSoup:
-Selecciona span.gradeitemheader (Tasca, Element manual, etc.).
-Llegeix la nota de la mateixa fila <tr>.
-
-3- Compara amb grades.json:
-nova entrada ➜ avisa tothom.
-nota actualitzada ➜ avisa només al propietari.
-
-4- Envia missatges via Telegram Bot API.
-
-5- Guarda el nou estat.
+## 🏗️ Funcionament Intern
+**Això és el que fa el codi cada cop que s'engega:**
+1. **SSO Segur i Transparent**: Processa l'inici de sessió al campus de la UdG resolent internament la plataforma i els codis TOTP enviats del generador automàtic per al portal de CAS.
+2. **Scraping dels panells evaluatius**: Per a cada clau iterada dins `courses.json`, examina en privat si la base de taules (BeautifulSoup de `.gradeitemheader`) inclou noves valoracions per a l'alumne.
+3. **Anàlisi Diferencial**: Les qualificacions vigents només es tornen a notificar al Telegram del propietari si no figuren als antics buits emmagatzemats pel memòria interna (`grades.json`) a un temps anterior.
+4. **Desat local**: Guarda els punts i el nou Cookie Jar renovat per la propera consulta ràpida en menys d'un segon.

@@ -1,8 +1,11 @@
 .env
+.DS_Store
 grades.json
 courses.json
+cookies.json
 *credentials.txt
-.DS_Store
+
+
 
 __pycache__/
 *.pyc

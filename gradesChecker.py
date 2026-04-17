@@ -7,7 +7,7 @@ Comprova les pàgines d’Informe d’usuari de Moodle i avisa per Telegram.
 – Als xats indicats a FRIEND_CHAT_IDS rep només l’avís “nova nota” (sense nota).
 
 Requereix:
-    .env (TOKEN, CHAT_ID, FRIEND_CHAT_IDS, MoodleSession)
+    credentials.txt (TOKEN, CHAT_ID, FRIEND_CHAT_IDS, MoodleSession)
     grades.json     (es crea la 1a execució)
 """
 import json, sys, re, requests
@@ -26,17 +26,17 @@ TIMEOUT    = 20
 
 # ─── CREDENTIALS ────────────────────────────────────────────────────
 def load_credentials(fp: Path):
-    token = chat = cookie = user = pwd = None
-    for line in fp.read_text().splitlines():
-        k, _, v = line.partition("=")
-        if k == "TOKEN":          token  = v.strip()
-        elif k == "CHAT_ID":      chat   = int(v.strip())
-        elif k == "MoodleSession": cookie = v.strip()
-        elif k == "USERNAME":      user   = v.strip()
-        elif k == "PASSWORD":      pwd    = v.strip()
-    if not all((token, chat, cookie, user, pwd)):
+    import os
+    from dotenv import load_dotenv
+    load_dotenv(dotenv_path=fp)
+    token = os.getenv("TOKEN")
+    chat_str = os.getenv("CHAT_ID")
+    chat = int(chat_str) if chat_str else None
+    user = os.getenv("USERNAME")
+    pwd = os.getenv("PASSWORD")
+    if not all((token, chat, user, pwd)):
         sys.exit("Falten camps a .env")
-    return token, chat, cookie, user, pwd
+    return token, chat, user, pwd
 
 # ─── COURSE CONFIG ──────────────────────────────────────────────────
 def load_courses(fp: Path) -> Dict[int, Dict]:
@@ -76,23 +76,19 @@ def clean_course_name(raw: str) -> str:
     return txt
 
 # ─── SCRAPER ────────────────────────────────────────────────────────
-def fetch_grades(cookie: str, cid: int):
+def fetch_grades(sess: requests.Session, cid: int):
     url = f"https://moodle.udg.edu/grade/report/user/index.php?id={cid}"
     try:
-        r = requests.get(
-            url,
-            cookies={"MoodleSession": cookie},
-            timeout=TIMEOUT,
-            allow_redirects=False,
-        )
+        r = sess.get(url, timeout=TIMEOUT, allow_redirects=True)
     except requests.exceptions.TooManyRedirects:
         raise RuntimeError("cookie expired (redirect loop)")
 
-    if r.is_redirect or r.status_code in (301, 302, 303, 307, 308):
-        raise RuntimeError("cookie expired (redirect)")
-
     r.raise_for_status()
     html = r.text
+
+    # Detectem si hem acabat a la pàgina de login (cookie expirada)
+    if "adAS_username" in html or "SAMLRequest" in html or "/login/index.php" in r.url:
+        raise RuntimeError("cookie expired (redirect)")
 
     try:
         soup = BeautifulSoup(html, "lxml")
@@ -121,21 +117,30 @@ def write_state(state: dict):
 
 # ─── MAIN ───────────────────────────────────────────────────────────
 def main():
-    TOKEN, OWNER_CHAT, cookie, user, pwd = load_credentials(CREDENTIALS_FILE)
+    TOKEN, OWNER_CHAT, user, pwd = load_credentials(CREDENTIALS_FILE)
     courses = load_courses(COURSES_FILE)          # dict cid → info
     old_state = read_state()                      # cid(str) → {title: grade}
     new_state = {}
     owner_changes: List[str] = []                # missatges complets
     friend_msgs: Dict[int, List[str]] = {}       # chat_id → msg list
 
+    # Creem una sessió amb les cookies guardades
+    sess = requests.Session()
+    cookies_file = CREDENTIALS_FILE.with_name("cookies.json")
+    if cookies_file.exists():
+        try:
+            sess.cookies.update(json.loads(cookies_file.read_text()))
+        except Exception:
+            pass
+
     for cid, info in courses.items():
         try:
-            grades, raw_name = fetch_grades(cookie, cid)
+            grades, raw_name = fetch_grades(sess, cid)
         except RuntimeError as e:
             if "cookie expired" in str(e):
                 print("Cookie expirada – refrescant…")
-                cookie = refresh_cookie(CREDENTIALS_FILE)
-                grades, raw_name = fetch_grades(cookie, cid)
+                sess = refresh_cookie(CREDENTIALS_FILE)
+                grades, raw_name = fetch_grades(sess, cid)
             else:
                 raise
 
@@ -193,12 +198,14 @@ def main():
 if __name__ == "__main__":
     print()
     print("/////////////////////////    \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\")
-    print("x--------     gradesChecker (versio 1.2)     --------x")
+    print("x--------     gradesChecker (versio 1.2FA)     --------x")
     print()
     try:
         main()
-    except:
-        print("\nExecució fallida.")
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        print(f"\nExecució fallida. ({e})")
     horaExecucio = f"{datetime.now():%d/%m %H:%M}"
     print("x--------  fi execucio - hora:", horaExecucio, "  --------x")
     print("\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\    /////////////////////////")
