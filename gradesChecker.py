@@ -126,7 +126,14 @@ def main():
 
     # Creem una sessió amb les cookies guardades
     sess = requests.Session()
-    cookies_file = CREDENTIALS_FILE.with_name("cookies.json")
+    import os
+    
+    shared_dir = os.getenv("SHARED_COOKIE_DIR")
+    if shared_dir:
+        cookies_file = Path(shared_dir) / "cookies.json"
+    else:
+        cookies_file = CREDENTIALS_FILE.with_name("cookies.json")
+        
     if cookies_file.exists():
         try:
             sess.cookies.update(json.loads(cookies_file.read_text()))

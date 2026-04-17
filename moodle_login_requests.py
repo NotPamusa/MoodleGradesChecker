@@ -97,7 +97,14 @@ def refresh_cookie(creds_path: pathlib.Path, test_course: int = 41306) -> reques
 
     # ── 6. Desa tot el cookie jar (inclosos SSO i idpsession)
     import json
-    cookies_file = creds_path.with_name("cookies.json")
+    import os
+    
+    shared_dir = os.getenv("SHARED_COOKIE_DIR")
+    if shared_dir:
+        cookies_file = pathlib.Path(shared_dir) / "cookies.json"
+    else:
+        cookies_file = creds_path.with_name("cookies.json")
+
     with open(cookies_file, "w") as f:
         json.dump(requests.utils.dict_from_cookiejar(sess.cookies), f)
 
